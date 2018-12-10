@@ -26,28 +26,15 @@ er = 1E-16
 domain = Circle(Point(0, 0), R)
 mesh = generate_mesh(domain, 32)
 
-boundaries = MeshFunction("size_t", mesh, 1)
 V = FunctionSpace(mesh, 'P', 1)
 
-# -du/dn = g
-class boundary_nD(SubDomain):
-    def inside(self, x, on_boundary):
-        return on_boundary and (x[1] > -er) and (x[0]*x[0] + x[1]*x[1] > R*R - er) and (x[0]*x[0] + x[1]*x[1] < R*R + er)   
-
-# u|y<0 = h(x, y) x2 + y2 = R2
-class boundary_D(SubDomain):
-    def inside(self, x, on_boundary):
-        return on_boundary and (x[1] < er) and (x[0]*x[0] + x[1]*x[1] > R*R - er) and (x[0]*x[0] + x[1]*x[1] < R*R + er)   
-    
-bound0 = boundary_nD()
-bound0.mark(boundaries, 0)
-
-bound1 = boundary_D()
-bound1.mark(boundaries, 1)
+# u = h
+def boundary(x, on_boundary):
+    return on_boundary or (x[1] < 0)
 
 u_D = Expression('3*x[1]*sin(x[0])', degree = 2)
 
-alpha = 1.01
+alpha = 2
 f = Expression('(-1 + alpha) * 3*x[1]*sin(x[0])', degree = 2, alpha = alpha)
 g = Expression('-3*x[1]*cos(x[0])*x[0]/R - 3*sin(x[0])*x[1]/R', degree = 2, R = R)
 #h = Expression('3*x[1]*sin(x[0])', degree = 2)
@@ -55,11 +42,10 @@ g = Expression('-3*x[1]*cos(x[0])*x[0]/R - 3*sin(x[0])*x[1]/R', degree = 2, R = 
 u = TrialFunction(V)
 v = TestFunction(V)
 
-a = dot(grad(u), grad(v))*dx + alpha*u*v*dx
+a = dot(grad(u), grad(v))*dx + alpha*u*v*ds
+L = f*v*dx - g*v*ds
 
-L = f*v*dx - g*v*ds(0, subdomain_data = boundaries)
-
-bc = DirichletBC(V, u_D, boundaries, 1)
+bc = DirichletBC(V, u_D, boundary)
 u = Function(V)
 solve(a == L, u, bc)
 
