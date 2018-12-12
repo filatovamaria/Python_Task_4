@@ -22,30 +22,55 @@ from fenics import *
 from mshr import *
 
 R = pi
-er = 1E-16
+
 domain = Circle(Point(0, 0), R)
-mesh = generate_mesh(domain, 32)
+mesh = generate_mesh(domain, 64)
 
 V = FunctionSpace(mesh, 'P', 1)
 
-# u = h
-def boundary(x, on_boundary):
-    return on_boundary or (x[1] < 0)
+bounds = MeshFunction("size_t", mesh, 1)
 
-u_D = Expression('3*x[1]*sin(x[0])', degree = 2)
+# du/dn|y>0 = g(x,y)
+class boundary1(SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary or (x[1] >= 0)
+    
+b1 = boundary1()
+b1.mark(bounds, 0)
 
-alpha = 2
-f = Expression('(-1 + alpha) * 3*x[1]*sin(x[0])', degree = 2, alpha = alpha)
-g = Expression('-3*x[1]*cos(x[0])*x[0]/R - 3*sin(x[0])*x[1]/R', degree = 2, R = R)
-#h = Expression('3*x[1]*sin(x[0])', degree = 2)
+# u|(y<0) = h(x,y), on boundary and y<0
+class boundary2(SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary or (x[1] < 0)
+
+b2 = boundary2()
+b2.mark(bounds, 1)
+
+#u_D = Expression('3*x[1]*sin(x[0])', degree = 2)
+#
+#alpha = 2
+#f = Expression('(1 + alpha) * 3*x[1]*sin(x[0])', degree = 2, alpha = alpha)
+#g = Expression('-3*x[1]*cos(x[0])*x[0]/R - 3*sin(x[0])*x[1]/R', degree = 2, R = R)
+
+u_D = Expression('5*x[1]*exp(x[0]) - 2', degree = 2) # == h
+
+alpha = -1
+f = Expression('(alpha - 1) * 5 * x[1] * exp(x[0]) - 2 * alpha', degree = 2, alpha = alpha)
+g = Expression('-5*x[1]*exp(x[0])*x[0]/R - 5*exp(x[0])*x[1]/R', degree = 2, R = R)
+
+#u_D = Expression('-x[1]*x[0]', degree = 2) # == h
+#
+#alpha = 10
+#f = Expression('- alpha * x[1] * x[0]', degree = 2, alpha = alpha)
+#g = Expression('x[1]*x[0]/R + x[0]*x[1]/R', degree = 2, R = R)
 
 u = TrialFunction(V)
 v = TestFunction(V)
+bc = DirichletBC(V, u_D, bounds, 1)
 
-a = dot(grad(u), grad(v))*dx + alpha*u*v*ds
-L = f*v*dx - g*v*ds
+a = dot(grad(u), grad(v))*dx + alpha*dot(u,v)*dx
+L = f*v*dx - g*v*ds(0, subdomain_data = bounds)
 
-bc = DirichletBC(V, u_D, boundary)
 u = Function(V)
 solve(a == L, u, bc)
 
@@ -68,10 +93,10 @@ plt.figure()
 zfaces = numpy.asarray([u_D(cell.midpoint()) for cell in cells(mesh)])
 plt.tripcolor(triangulation, facecolors=zfaces, edgecolors='k')
 plt.title("Analytical solution")
-plt.savefig('kz_1a.png')
+plt.savefig('kz_1a1.png')
 
 plt.figure()
 zfaces = numpy.asarray([u(cell.midpoint()) for cell in cells(mesh)])
 plt.tripcolor(triangulation, facecolors=zfaces, edgecolors='k')
 plt.title("Numerical solution")
-plt.savefig('kz_1n.png')
+plt.savefig('kz_1n1.png')
